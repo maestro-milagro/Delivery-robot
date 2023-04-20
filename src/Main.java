@@ -6,7 +6,7 @@ import java.util.Random;
 public class Main {
     public static final Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         RCounter("RLRFR", 100, 1000);
         printMaxRep();
 
@@ -22,7 +22,28 @@ public class Main {
         return route.toString();
     }
 
-    public static void RCounter(String letters, int length, int repNumber) {
+    public static void RCounter(String letters, int length, int repNumber) throws InterruptedException {
+        Thread freqlog = new Thread(() -> {
+            synchronized (sizeToFreq) {
+                while (!Thread.interrupted()) {
+                    try {
+                        sizeToFreq.wait();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    int maxKey = 0;
+                    int maxValue = 0;
+                    for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
+                        if (entry.getValue() > maxValue) {
+                            maxValue = entry.getValue();
+                            maxKey = entry.getKey();
+                        }
+                    }
+                    System.out.printf("Самое частое количество повторений на данный момент %s (встретилось %s раз)\n", maxKey, maxValue);
+                }
+            }
+        });
+        freqlog.start();
 
         for (int i = 0; i < repNumber; i++) {
             Thread myThread = new Thread(() -> {
@@ -38,33 +59,35 @@ public class Main {
                         sizeToFreq.put(rCounter, 1);
                     } else {
                         sizeToFreq.replace(rCounter, sizeToFreq.get(rCounter) + 1);
-
                     }
+                    sizeToFreq.notify();
                 }
             });
             myThread.start();
+            myThread.join();
         }
+        freqlog.interrupt();
+
     }
 
     public static void printMaxRep() {
         int maxKey = 0;
         int maxValue = 0;
-        for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
-            if (entry.getValue() > maxValue) {
-                maxValue = entry.getValue();
-                maxKey = entry.getKey();
+        synchronized (sizeToFreq) {
+            for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
+                if (entry.getValue() > maxValue) {
+                    maxValue = entry.getValue();
+                    maxKey = entry.getKey();
+                }
+            }
+            System.out.printf("Самое частое количество повторений %s (встретилось %s раз)\n", maxKey, maxValue);
+            System.out.println("Другие размеры:");
+            for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
+                if (entry.getKey() == maxKey) {
+                    continue;
+                }
+                System.out.printf("%s - (%s раз)\n", entry.getKey(), entry.getValue());
             }
         }
-        System.out.printf("Самое частое количество повторений %s (встретилось %s раз)\n", maxKey, maxValue);
-        System.out.println("Другие размеры:");
-        for (Map.Entry<Integer, Integer> entry : sizeToFreq.entrySet()) {
-            if (entry.getKey() == maxKey) {
-                continue;
-            }
-            System.out.printf("%s - (%s раз)\n", entry.getKey(), entry.getValue());
-
-        }
-
-
     }
 }
